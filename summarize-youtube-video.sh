@@ -37,12 +37,12 @@ check_fabric() {
     echo "Debug: Checking for Fabric installation..." >&2
 
     # Add all possible Go binary locations to PATH, including mise path
-    export PATH="$PATH:$HOME/go/bin:/usr/local/go/bin:/opt/homebrew/bin:/opt/homebrew/opt/go/bin:$HOME/.local/share/mise/installs/go/1.23.5/bin"
+    export PATH="$PATH:$HOME/go/bin:/usr/local/go/bin:/opt/homebrew/bin:/opt/homebrew/opt/go/bin:$HOME/.local/share/mise/installs/go/*/bin"
     echo "Debug: Updated PATH: $PATH" >&2
 
     # Try multiple possible fabric locations
     local possible_paths=(
-        "$HOME/.local/share/mise/installs/go/1.23.5/bin/fabric"  # mise-managed fabric
+        "$HOME/.local/share/mise/installs/go/*/bin/fabric"  # mise-managed fabric
         "$HOME/go/bin/fabric"
         "/usr/local/go/bin/fabric"
         "/opt/homebrew/bin/fabric"
@@ -52,13 +52,16 @@ check_fabric() {
 
     local fabric_found=false
     for path in "${possible_paths[@]}"; do
-        echo "Debug: Checking path: $path" >&2
-        if [ -x "$path" ]; then
-            echo "Debug: Found Fabric at: $path" >&2
-            export PATH="$(dirname "$path"):$PATH"
-            fabric_found=true
-            break
-        fi
+        # Handle glob patterns
+        for actual_path in $path; do
+            echo "Debug: Checking path: $actual_path" >&2
+            if [ -x "$actual_path" ]; then
+                echo "Debug: Found Fabric at: $actual_path" >&2
+                export PATH="$(dirname "$actual_path"):$PATH"
+                fabric_found=true
+                break 2
+            fi
+        done
     done
 
     if [ "$fabric_found" = false ]; then
