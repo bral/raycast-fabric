@@ -4,7 +4,7 @@
 # @raycast.schemaVersion 1
 # @raycast.title Update Youtube Fabric Patterns
 # @raycast.mode compact
-# @raycast.packageName YouTube Tools
+# @raycast.packageName Fabric Tools
 # @raycast.icon 🔄
 
 # Documentation:
