@@ -2,7 +2,7 @@
 
 # Required parameters:
 # @raycast.schemaVersion 1
-# @raycast.title Update Fabric Patterns
+# @raycast.title Update Youtube Fabric Patterns
 # @raycast.mode compact
 # @raycast.packageName YouTube Tools
 # @raycast.icon 🔄
@@ -22,75 +22,6 @@ PATTERNS_DIR="$HOME/.config/fabric/patterns"
 YOUTUBE_SCRIPT="$HOME/Documents/Raycast Scripts/summarize-youtube-video.sh"
 TEMP_SCRIPT="${YOUTUBE_SCRIPT}.tmp"
 
-check_fabric() {
-    debug "Debug: Checking for Fabric installation..." >&2
-
-    # Define common paths as readonly array
-    readonly POSSIBLE_GO_PATHS=(
-        "$HOME/go/bin"
-        "/usr/local/go/bin"
-        "/opt/homebrew/bin"
-        "/opt/homebrew/opt/go/bin"
-        "$HOME/.local/share/mise/installs/go/*/bin"
-    )
-
-    # Build PATH addition once
-    local path_addition
-    printf -v path_addition "%s:" "${POSSIBLE_GO_PATHS[@]}"
-    export PATH="$PATH:${path_addition%:}"  # Remove trailing colon
-    debug "Updated PATH: $PATH"
-
-    # Define fabric paths as readonly array
-    readonly POSSIBLE_FABRIC_PATHS=(
-        "$HOME/.local/share/mise/installs/go/*/bin/fabric"  # mise-managed fabric
-        "$HOME/go/bin/fabric"
-        "/usr/local/go/bin/fabric"
-        "/opt/homebrew/bin/fabric"
-        "/opt/homebrew/opt/go/bin/fabric"
-        "$(which fabric 2>/dev/null || echo '')"
-    )
-
-    local fabric_found=false
-    local actual_path
-    for path in "${POSSIBLE_FABRIC_PATHS[@]}"; do
-        # More efficient glob handling
-        compgen -G "$path" > /dev/null || continue
-        while IFS= read -r actual_path; do
-            debug "Checking path: $actual_path"
-            if [ -x "$actual_path" ]; then
-                debug "Found Fabric at: $actual_path"
-                export PATH="$(dirname "$actual_path"):$PATH"
-                fabric_found=true
-                break 2
-            fi
-        done < <(compgen -G "$path")
-    done
-
-    if [ "$fabric_found" = false ]; then
-        printf "Error: Fabric not found. Install it with: go install github.com/danielmiessler/fabric@latest\n" >&2
-        printf "Note: Make sure Go is installed and Fabric is in your PATH\n" >&2
-        exit 1
-    fi
-
-    # Check fabric version
-    debug "Fabric found. Checking version..."
-    if ! fabric_version=$(fabric --version 2>&1); then
-        debug "Warning: Could not get Fabric version"
-    else
-        debug "Fabric version: $fabric_version"
-    fi
-
-    debug "✅ Fabric check passed"
-}
-
-# Run fabric check and update
-check_fabric
-debug "Running fabric update..."
-if ! fabric -U; then
-    printf "Error: Failed to update Fabric patterns\n" >&2
-    exit 1
-fi
-
 debug "Scanning patterns directory: $PATTERNS_DIR"
 
 # Generate pattern data from directories
@@ -103,6 +34,7 @@ PATTERN_DATA=$(
         # Transform pattern name to readable title with pre-compiled regex
         title=$(printf '%s' "$pattern" |
                 perl -pe 'BEGIN{
+                    # Pre-compile regex patterns
                     %replace = (
                         "Cot" => "COT",
                         "Ai" => "AI",
