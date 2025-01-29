@@ -141,7 +141,7 @@ get_youtube_transcript() {
 
     debug "Fetching YouTube transcript for $url"
     local transcript
-    if ! transcript=$(timeout "${TIMEOUT_TRANSCRIPT}s" fabric -y "$url" 2>&1); then
+    if ! transcript=$(perl -e 'alarm shift; exec @ARGV' "${TIMEOUT_TRANSCRIPT}" fabric -y "$url" 2>&1); then
         local exit_code=$?
         case $exit_code in
             124) echo "Error: Transcript fetch timed out" >&2 ;;
@@ -174,7 +174,7 @@ process_with_pattern() {
 
     debug "Processing transcript with pattern: $pattern"
     local result
-    if ! result=$(timeout "${TIMEOUT_PATTERN}s" fabric -p "$pattern" <<<"$transcript" 2>&1); then
+    if ! result=$(perl -e 'alarm shift; exec @ARGV' "${TIMEOUT_PATTERN}s" fabric -p "$pattern" <<<"$transcript" 2>&1); then
         local exit_code=$?
         case $exit_code in
             124) echo "Error: Pattern processing timed out" >&2 ;;
