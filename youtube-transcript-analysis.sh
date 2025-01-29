@@ -23,10 +23,10 @@
 readonly CACHE_DIR="${HOME}/.cache/raycast/youtube"
 readonly TRANSCRIPT_CACHE_DIR="${CACHE_DIR}/transcripts"
 readonly PATTERN_CACHE_DIR="${CACHE_DIR}/patterns"
-readonly TRANSCRIPT_CACHE_TTL=$((30*24*60*60))  # 30 days in seconds
-readonly PATTERN_CACHE_TTL=$((7*24*60*60))      # 7 days in seconds
-readonly TIMEOUT_TRANSCRIPT=15                   # seconds
-readonly TIMEOUT_PATTERN=15                      # seconds
+readonly TRANSCRIPT_CACHE_TTL=$((30*24*60*60))   # 30 days in seconds
+readonly PATTERN_CACHE_TTL=$((7*24*60*60))       # 7 days in seconds
+readonly TIMEOUT_TRANSCRIPT=360                   # seconds
+readonly TIMEOUT_PATTERN=360                      # seconds
 
 # Add debug function at the start of the script
 debug() {
@@ -133,6 +133,7 @@ get_youtube_transcript() {
         local file_age=$(($(date +%s) - $(stat -f %m "$cache_file")))
         if [ $file_age -lt "$TRANSCRIPT_CACHE_TTL" ]; then
             debug "Using cached transcript from $cache_file"
+            echo "Using cached transcript" >&2
             cat "$cache_file"
             return 0
         fi
@@ -178,9 +179,9 @@ process_with_pattern() {
         case $exit_code in
             124) echo "Error: Pattern processing timed out" >&2 ;;
             62) echo "Error: Rate limit exceeded. Please try again later" >&2 ;;
-            *) echo "Error processing with pattern: $result" >&2 ;;
+            *)
+            ;;
         esac
-        return 1
     fi
 
     echo "$result" > "$cache_file"

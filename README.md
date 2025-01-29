@@ -1,5 +1,7 @@
 # Raycast Fabric YouTube Analysis
 
+!! This is a proof of concept and will be changing frequently. Please fork it.
+
 A Raycast extension that leverages Fabric AI to analyze YouTube videos, providing transcripts, summaries, and various analysis patterns.
 
 ![Screenshot of extension](screenshot.png)
@@ -56,11 +58,15 @@ chmod +x path/to/update-youtube-fabric-patterns.sh
 
 ## Usage
 
+1. Make sure Fabric has a default model set `fabric -d`
+1. Make sure you can retrive a YouTube video transcript and analyze it with Fabric `fabric -y https://www.youtube.com/watch?v=wPEyyigh10g | fabric -p extract_wisdom`
 1. Open Raycast
-2. Type "YouTube Analysis"
-3. Choose an analysis pattern (optional)
-4. Enter a URL or use current browser tab
-5. Results will be copied to clipboard
+1. Run "Update YouTube Raycast Patterns"
+1. Run "Reload Script Directories"
+1. Type "YouTube Analysis"
+1. Choose an analysis pattern (optional)
+1. Enter a URL or use current browser tab
+1. Results will be copied to clipboard
 
 ## Cache Locations
 
