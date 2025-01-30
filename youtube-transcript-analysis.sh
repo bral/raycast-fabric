@@ -27,6 +27,7 @@ readonly TRANSCRIPT_CACHE_TTL=$((30*24*60*60))   # 30 days in seconds
 readonly PATTERN_CACHE_TTL=$((7*24*60*60))       # 7 days in seconds
 readonly TIMEOUT_TRANSCRIPT=360                   # seconds
 readonly TIMEOUT_PATTERN=360                      # seconds
+readonly OBSIDIAN_VAULT="/Users/brannonlucas/Documents/Obsidian Vault/Youtube Transcripts"    # Optional vault path
 
 # Add debug function at the start of the script
 debug() {
@@ -124,6 +125,21 @@ get_browser_url() {
     echo "$url"
 }
 
+get_video_title() {
+    local url="$1"
+    local title
+
+    # Try to get title using curl and grep
+    if ! title=$(curl -s "$url" | grep -o '<title>[^<]*' | sed 's/<title>//; s/ - YouTube//'); then
+        debug "Failed to get video title, using timestamp instead"
+        title=$(date +%Y%m%d%H%M%S)
+    fi
+
+    # Sanitize the title for use in filename
+    title=$(echo "$title" | tr -dc '[:alnum:] ._-' | tr -s ' ' | tr ' ' '-')
+    echo "$title"
+}
+
 get_youtube_transcript() {
     local url="$1"
     local cache_file="${TRANSCRIPT_CACHE_DIR}/$(echo -n "$url" | shasum -a 256 | cut -d' ' -f1)"
@@ -155,6 +171,54 @@ get_youtube_transcript() {
     echo "$transcript" > "$cache_file"
     debug "Cached transcript to $cache_file"
     echo "$transcript"
+}
+
+save_to_obsidian() {
+    local transcript="$1"
+    local url="$2"
+
+    if [ -z "$OBSIDIAN_VAULT" ]; then
+        debug "No Obsidian vault path set, skipping save"
+        return 0
+    fi
+
+    if [ ! -d "$OBSIDIAN_VAULT" ]; then
+        echo "Error: Obsidian vault directory does not exist: $OBSIDIAN_VAULT" >&2
+        return 1
+    fi  # Changed from } to fi
+
+    # Get video title
+    local title
+    title=$(get_video_title "$url")
+
+    # Create filename
+    local filename="${OBSIDIAN_VAULT}/YouTube-${title}.md"
+
+    # Check if file already exists
+    if [ -f "$filename" ]; then
+        debug "Transcript already exists in Obsidian: $filename"
+        echo "ℹ️ Transcript already exists in Obsidian vault"
+        return 0
+    fi
+
+    # Create markdown content with frontmatter
+    local timestamp
+    timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+
+    {
+        echo "---"
+        echo "title: \"${title}\""
+        echo "url: \"${url}\""
+        echo "date: \"${timestamp}\""
+        echo "type: youtube-transcript"
+        echo "status: needs_analysis"
+        echo "---"
+        echo
+        echo "$transcript"
+    } > "$filename"
+
+    debug "Saved transcript to Obsidian: $filename"
+    return 0
 }
 
 process_with_pattern() {
@@ -244,6 +308,10 @@ main() {
         exit 1
     fi
 
+     # Save transcript to Obsidian if vault is configured
+    save_to_obsidian "$transcript" "$url"
+    [ -n "$OBSIDIAN_VAULT" ] && echo "✅ Transcript saved to Obsidian vault!"
+
     # If no pattern specified, copy transcript directly to clipboard
     if [ -z "$pattern" ]; then
         echo "$transcript" | pbcopy
@@ -264,8 +332,5 @@ main() {
 
     echo "✅ Analysis copied to clipboard!"
 }
-
-# Move the main function call to the end of the file
-main "$@"
 
 main "$@"
