@@ -29,17 +29,21 @@ readonly TIMEOUT_TRANSCRIPT=360                   # seconds
 readonly TIMEOUT_PATTERN=360                      # seconds
 readonly OBSIDIAN_VAULT="/Users/brannonlucas/Documents/Obsidian Vault/Youtube Transcripts"    # Optional vault path
 
+# Global variables for Fabric configuration
+FABRIC_DEFAULT_VENDOR=""
+FABRIC_DEFAULT_MODEL=""
+
 # Add debug function at the start of the script
 debug() {
-    printf "Debug: %s\n" "$*" >&2
+    if [[ -n "${DEBUG:-}" ]]; then
+        printf "Debug: %s\n" "$*" >&2
+    fi
 }
 
 # Initialize cache directories
 init_cache() {
     mkdir -p "$TRANSCRIPT_CACHE_DIR" "$PATTERN_CACHE_DIR"
 }
-
-set -euo pipefail
 
 check_fabric() {
     debug "Debug: Checking for Fabric installation..." >&2
@@ -100,6 +104,17 @@ check_fabric() {
     fi
 
     debug "✅ Fabric check passed"
+}
+
+get_default_fabric_model() {
+    # Run fabric -d and send empty responses to the prompts using printf
+    output=$(printf '\n\n' | fabric -d)
+
+    # Set global variables for vendor and model
+    FABRIC_DEFAULT_VENDOR=$(echo "$output" | grep "DEFAULT_VENDOR:" | awk '{print $2}')
+    FABRIC_DEFAULT_MODEL=$(echo "$output" | grep "DEFAULT_MODEL:" | awk '{print $2}')
+
+    debug "Current Fabric Configuration - Vendor: $FABRIC_DEFAULT_VENDOR, Model: $FABRIC_DEFAULT_MODEL"
 }
 
 get_browser_url() {
@@ -177,48 +192,46 @@ save_to_obsidian() {
     local transcript="$1"
     local url="$2"
 
-    if [ -z "$OBSIDIAN_VAULT" ]; then
-        debug "No Obsidian vault path set, skipping save"
-        return 0
-    fi
+    # If not defined or doesn't exist, skip
+    [[ -z "$OBSIDIAN_VAULT" || ! -d "$OBSIDIAN_VAULT" ]] && return 0
 
-    if [ ! -d "$OBSIDIAN_VAULT" ]; then
-        echo "Error: Obsidian vault directory does not exist: $OBSIDIAN_VAULT" >&2
-        return 1
-    fi  # Changed from } to fi
-
-    # Get video title
-    local title
-    title=$(get_video_title "$url")
-
-    # Create filename
+    local title="$(get_video_title "$url")"
     local filename="${OBSIDIAN_VAULT}/YouTube-${title}.md"
 
-    # Check if file already exists
     if [ -f "$filename" ]; then
         debug "Transcript already exists in Obsidian: $filename"
         echo "ℹ️ Transcript already exists in Obsidian vault"
         return 0
     fi
 
-    # Create markdown content with frontmatter
     local timestamp
     timestamp=$(date +"%Y-%m-%d %H:%M:%S")
 
     {
-        echo "---"
-        echo "title: \"${title}\""
-        echo "url: \"${url}\""
-        echo "date: \"${timestamp}\""
-        echo "type: youtube-transcript"
-        echo "status: needs_analysis"
-        echo "---"
-        echo
-        echo "$transcript"
+      echo "---"
+      echo "title: \"${title}\""
+      echo "url: \"${url}\""
+      echo "date: \"${timestamp}\""
+      echo "type: youtube-transcript"
+      echo "status: needs_analysis"
+      echo "---"
+      echo
+      echo "$transcript"
     } > "$filename"
 
-    debug "Saved transcript to Obsidian: $filename"
-    return 0
+    debug "Saved transcript as: $filename"
+}
+
+is_thinking_model() {
+    local model="${1:-$FABRIC_DEFAULT_MODEL}"
+    case "$model" in
+        "o1*"|"o3*")
+            return 0  # true
+            ;;
+        *)
+            return 1  # false
+            ;;
+    esac
 }
 
 process_with_pattern() {
@@ -238,14 +251,28 @@ process_with_pattern() {
 
     debug "Processing transcript with pattern: $pattern"
     local result
-    if ! result=$(perl -e 'alarm shift; exec @ARGV' "${TIMEOUT_PATTERN}s" fabric -p "$pattern" <<<"$transcript" 2>&1); then
+    local fabric_cmd="fabric"
+
+    # Get current model and check if it's a thinking model
+    get_default_fabric_model
+    if is_thinking_model; then
+        debug "Using thinking model ($FABRIC_DEFAULT_MODEL) - no temperature/streaming support"
+        fabric_cmd="fabric -m $FABRIC_DEFAULT_MODEL"
+    fi
+
+    if ! result=$(perl -e 'alarm shift; exec @ARGV' "${TIMEOUT_PATTERN}s" $fabric_cmd -p "$pattern" <<<"$transcript" 2>&1); then
         local exit_code=$?
         case $exit_code in
             124) echo "Error: Pattern processing timed out" >&2 ;;
             62) echo "Error: Rate limit exceeded. Please try again later" >&2 ;;
             *)
+                if [ $exit_code -ne 0 ]; then
+                    echo "Error: Pattern processing failed with exit code $exit_code" >&2
+                    echo "$result" >&2
+                fi
             ;;
         esac
+        return $exit_code
     fi
 
     echo "$result" > "$cache_file"
@@ -272,6 +299,8 @@ validate_youtube_url() {
 }
 
 main() {
+    set -euo pipefail
+
     # Initialize cache directories at startup
     init_cache
 
